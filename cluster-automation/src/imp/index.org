@@ -1,0 +1,27 @@
+#+Title: Implementation of automating the cluster creation
+#+Author: Systems Team
+#+SETUPFILE: ../org-templates/level-1.org
+#+TAGS: boilerplate(b)
+#+EXCLUDE_TAGS: boilerplate
+#+OPTIONS: ^:nil
+
+* Introduction
+  This document contains the implementation of automation of cluster
+  creation.
+* Implementation
+  - [[./spec/index.org][Cluster Specifications]]
+  - [[./common-vars.org][Common variables for this project]]
+  - [[./base-setup.org][Base machine setup]]
+  - [[./create-cluster-containers.org][Create cluster containers]]
+  - [[./router.org][Router]]
+  - [[./ansible-server.org][Ansible-server]]
+  - [[./ossec-server.org][ossec-server]]
+  - [[./rsyslog-server.org][rsyslog-server]]
+  - [[./private-dns.org][private-dns]]
+  - [[./public-dns.org][public-dns]]
+  - [[./reverse-proxy-awstats.org][Reverse-proxy]]
+  - [[./nagios.org][nagios]]
+  - [[./rsnapshot-server.org][rsnapshot]]
+  - [[./ads.org][ADS service]]
+  - [[./main.org][Main playbook]]
+

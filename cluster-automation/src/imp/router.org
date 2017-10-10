@@ -1,0 +1,102 @@
+#+Title: Router
+#+Author: Systems Team
+#+SETUPFILE: ../org-templates/level-1.org
+#+TAGS: boilerplate(b)
+#+EXCLUDE_TAGS: boilerplate
+#+OPTIONS: ^:nil
+
+
+* Introduction
+  This document describes the automation of router container configuration   
+* Implementation
+** Router container configuration
+*** Router 
+**** main
+    Following script does
+   - Creates a password for router and configures so that this container will be active with internet.
+   - Also adds some firewall rules in iptables
+   - A temporary NATing rule to get internet in private network containers is included and This rule will be used to run playbooks of private and public dns nodes and router nodes smoothly
+#+BEGIN_SRC yml :tangle roles/router/tasks/main.yml
+---
+
+- name: Setting root password for router
+  command: vzctl set 1001 --userpasswd root:{{container_root_password}}
+
+- name: copying interface ifcfg-eth0 file
+  template: src=ifcfg-eth0 dest=/vz/private/1001/etc/sysconfig/network-scripts/
+  
+- name: copying interface ifcfg-eth1 file
+  template: src=ifcfg-eth1 dest=/vz/private/1001/etc/sysconfig/network-scripts/
+
+- name: Router's Network restarting
+  command: vzctl exec 1001 service network restart
+
+- name: Setting iptable rule to router
+  command: vzctl exec 1001 iptables -t nat -A POSTROUTING ! -d {{subnet}} -o eth0 -j SNAT --to-source {{ipaddress.router}}
+
+- name: Saving iptables
+  command: vzctl exec 1001 iptables-save > /etc/sysconfig/iptables
+
+- name: ipv4 forwarding in router
+  replace:
+     path: /vz/private/1001/etc/sysctl.conf
+     regexp: 'net.ipv4.ip_forward = 0'
+     replace: 'net.ipv4.ip_forward = 1'
+
+- name: rebooting router
+  command: vzctl restart 1001
+  register: out
+- debug: var=out.stdout_lines
+
+#+END_SRC
+
+**** dependencies
+This file includes common-vars role which contains all variables that are mentioned
+#+BEGIN_SRC yml :tangle roles/router/meta/main.yml
+
+dependencies:
+    - common-vars
+
+#+END_SRC
+
+**** Router's Public Network
+  This template contains public network configuration of router with public ipaddress,net-mask,gateway and dns.
+
+
+#+BEGIN_SRC yml :tangle roles/router/templates/ifcfg-eth0
+
+DEVICE=eth0
+TYPE=Ethernet
+BOOTPROTO=static
+ONBOOT=yes
+NM_CONTROLLED=no
+IPADDR={{ipaddress.router}}
+NETMASK={{net_mask}}
+GATEWAY={{internet_gateway}}
+DNS1={{dnsaddress.dns1}}
+DNS2={{dnsaddress.dns2}}
+
+#+END_SRC
+
+**** Router's Private network
+This template contains private network configuration of router with private ip and net-mask contained in common-vars
+#+BEGIN_SRC yml :tangle roles/router/templates/ifcfg-eth1
+
+DEVICE=eth1
+BOOTPROTO=static
+ONBOOT=yes
+NM_CONTROLLED=no
+IPADDR=10.100.1.1
+NETMASK={{net_mask}}
+
+
+#+END_SRC
+
+It means, the container is created with two interfaces eth0 and eth1. eth0 of the router is connected to br0 of host machine and eth1 of the router is connected to br1  
+
+
+
+    
+  
+
+    

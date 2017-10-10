@@ -1,0 +1,54 @@
+#+Title: ADS setup
+#+Author: Systems Team
+#+SETUPFILE: ../org-templates/level-1.org
+#+TAGS: boilerplate(b)
+#+EXCLUDE_TAGS: boilerplate
+#+OPTIONS: ^:nil
+
+* Introduction
+This document descirbes the configuration of ads-server
+* Implementation
+** ADS role configuration
+*** ADS 
+**** ADS Network-setup
+#+BEGIN_SRC yml :tangle roles/ads-server/tasks/main.yml
+
+---
+- name: Set root password
+  command: vzctl set 1009 --userpasswd root:{{container_root_password}}
+
+- name: copy interface ifcfg-eth1 file
+  template: src=ifcfg-eth1 dest=/vz/private/1009/etc/sysconfig/network-scripts/
+
+- name: Network restart
+  command: vzctl exec 1009 service network restart
+
+
+#+END_SRC
+
+**** dependencies
+
+#+BEGIN_SRC yml :tangle roles/ads-server/meta/main.yml
+
+dependencies: 
+    - common-vars
+
+#+END_SRC
+
+**** ADS Private Network
+Configures the network-interface in /etc/sysconfig/network-scripts/ifcfg-eth1 of ads-server with the following fields 
+#+BEGIN_SRC yml :tangle roles/ads-server/templates/ifcfg-eth1
+
+DEVICE=eth1
+BOOTPROTO=static
+ONBOOT=yes
+NM_CONTROLLED=no
+IPADDR=10.100.1.9
+GATEWAY=10.100.1.1
+NETMASK={{net_mask}}
+
+#+END_SRC
+
+    
+  
+

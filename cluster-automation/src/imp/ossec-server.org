@@ -1,0 +1,61 @@
+#+Title: Ossec server
+#+Author: Systems Team
+#+SETUPFILE: ../org-templates/level-1.org
+#+TAGS: boilerplate(b)
+#+EXCLUDE_TAGS: boilerplate
+#+OPTIONS: ^:nil
+
+* Introduction
+  This document describes the network creation of  ossec-server.
+* Implementation
+** Automate Ossec server node configuration
+*** ossec server 
+**** Network-setup in Ossec-server
+ - Creates a password for ossec-server and configures so that this container will be active with internet.
+#+BEGIN_SRC yml :tangle roles/ossec-server/tasks/main.yml
+
+---
+- name: Set root password
+  command: vzctl set 1003 --userpasswd root:{{container_root_password}}
+
+- name: copy interface ifcfg-eth1 file
+  template: src=ifcfg-eth1 dest=/vz/private/1003/etc/sysconfig/network-scripts/
+
+- name: ossec-server Network restart
+  command: vzctl exec 1003 service network restart 
+
+#+END_SRC
+
+**** dependencies
+
+#+BEGIN_SRC yml :tangle roles/ossec-server/meta/main.yml
+
+dependencies:
+   - common-vars
+
+
+#+END_SRC
+
+**** Ossec-server Private Network
+Configures the network-interface in
+/etc/sysconfig/network-scripts/ifcfg-eth1 of ossec-server with the
+following fields
+#+BEGIN_SRC yml :tangle roles/ossec-server/templates/ifcfg-eth1
+DEVICE=eth1
+BOOTPROTO=static
+ONBOOT=yes
+NM_CONTROLLED=no
+IPADDR=10.100.1.3
+GATEWAY=10.100.1.1
+NETMASK={{net_mask}}
+#+END_SRC
+
+    
+  
+
+
+
+
+    
+  
+

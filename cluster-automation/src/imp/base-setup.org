@@ -1,0 +1,347 @@
+#+Title: Implementation of base machine setup
+#+Author: Systems Team
+#+SETUPFILE: ../org-templates/level-1.org
+#+TAGS: boilerplate(b)
+#+EXCLUDE_TAGS: boilerplate
+#+OPTIONS: ^:nil
+
+* Introduction
+  This document describes the Automation of base
+  machine's setup.
+* Implementation
+** Base Machine Setup
+   =basesetup= role contains following ansible playbooks. Each
+   playbook is included in =main.yml= file. The =main.yml= is the main
+   play book to setup base machine. The =main.yml= playbook runs other playbooks
+   included in it in a sequential order
+*** Create br0 interface
+    - The following playbook =br0.yml= creates =br0= interface for
+      host machine.This Creates ifcfg-br0 file in /etc/sysconfig/network-scripts/ and adds data mentioned in block field
+    
+#+BEGIN_SRC yml :tangle roles/basesetup/tasks/br0.yml
+---
+   - copy:  
+       content: ""      
+       dest: "/etc/sysconfig/network-scripts/ifcfg-br0"
+   
+      
+   - name: creating br0 bridge
+     blockinfile:
+        path: /etc/sysconfig/network-scripts/ifcfg-br0
+        block: |
+         DEVICE=br0
+         BOOTPROTO=static
+         ONBOOT=yes
+         TYPE=Bridge
+         NM_CONTROLLED=no
+         IPADDR={{ipaddress.hostmachine}}
+         NETMASK={{net_mask}}
+         GATEWAY={{internet_gateway}}
+         DNS1={{dnsaddress.dns1}}
+         DNS2={{dnsaddress.dns2}}
+
+   - name: Network restart
+     service: name=network state=restarted 
+
+...
+ 
+#+END_SRC
+
+*** Create eth0 interface on host machine.
+    Similar to above file,this also create ifcfg-eth0 file in /etc/sysconfig/network-scripts/ and adds data mentioned in block field to the file 
+#+BEGIN_SRC yml :tangle roles/basesetup/tasks/eth0.yml
+---
+   
+   - copy: 
+      content: ""      
+      dest: "/etc/sysconfig/network-scripts/ifcfg-eth0" 
+  
+   - name: creating eth0 bridge
+     blockinfile:
+        path: /etc/sysconfig/network-scripts/ifcfg-eth0
+        block: |
+         DEVICE=eth0
+         TYPE=Ethernet
+         ONBOOT=yes
+         NM_CONTROLLED=no
+         BOOTPROTO=none
+         BRIDGE=br0
+
+...
+    
+#+END_SRC
+
+*** Create br1 interface on host machine and restart network
+    Copies the content in block part to the destination mentioned in
+    =path=. Then network restart and shuts network-manager off
+    and restarts.Now you can see the bridges on your machine using brctl show command.
+#+BEGIN_SRC yml :tangle roles/basesetup/tasks/br1.yml
+---
+
+  - copy: 
+     content: ""      
+     dest: "/etc/sysconfig/network-scripts/ifcfg-br1"
+      
+  - name: creating Br1 bridge
+    blockinfile:
+       path: /etc/sysconfig/network-scripts/ifcfg-br1
+       block: |
+        DEVICE=br1
+        TYPE=Bridge
+        ONBOOT=yes
+        NM_CONTROLLED=no
+        BOOTPROTO=none
+
+  - service:
+     name: network
+     state: restarted
+
+
+  - name: Manager off
+    command: chkconfig NetworkManager off
+    register: out
+  - debug: var=out.stdout_lines
+
+  - name: Manager on
+    command: chkconfig network on
+    register: out
+  - debug: var=out.stdout_lines
+
+  - name: Running brctl show command
+    command: brctl show
+    register: out
+  - debug: var=out.stdout_lines
+
+#+END_SRC
+
+*** Install corkscrew
+    Install corkscrew and its dependencies. Corckscrew is needed when
+    network blocks outgoing =ssh= port over =the http_proxy=.
+   
+    Purpose of installing corckscrew here is, need to clone
+    [[https://bitbucket.org/vlead/systems-model][systems-model]] from bitbucket over =http+ssh=. In this case,
+    corkscrew is needed to clone repository.Corkscrew resolves port problem while cloning repository using ssh
+
+    *To run this ansible playbook/script, host machine's public_key
+    =id_rsa.pub= should be added in [[https://bitbucket.org/vlead/systems-model/admin/access-keys/][access keys on bitbucket.org]]
+    manually*.
+
+#+BEGIN_SRC yml :tangle roles/basesetup/tasks/corkscrew_installation.yml
+---
+- name: Installing Development tools
+  command: yum groupinstall "Development tools" -y
+  environment: "{{proxy_env}}"
+
+- name: Install python-pip
+  yum: name=python-pip state=installed
+  environment: "{{proxy_env}}"
+
+- name: installing passlib
+  pip: name=passlib
+  environment: "{{proxy_env}}"
+
+- name: installing wget
+  yum: name=wget state=installed
+  environment: "{{proxy_env}}"
+
+- name: Downloading Corkscrew tar file
+  get_url: url={{corkscrew_url1}} dest={{corckscrew_dest}}
+  environment: "{{proxy_env}}"
+  ignore_errors: yes
+
+- name: Downloading  corkscrew tar file
+  get_url: url={{corkscrew_url2}} dest={{corkscrew_dest}}
+  environment: "{{proxy_env}}"
+
+- name: Extracting downloaded file
+  unarchive: src={{corkscrew_dest}}/corkscrew-2.0.tar.gz dest={{corkscrew_dest}}
+
+- name: Running  ./configure file in corkscrew
+  command: ./configure
+  args:
+    chdir: "{{corkscrew_dest}}/corkscrew-2.0/"
+  register: out
+- debug: var=out.stdout_lines
+
+- name: Running make
+  command: make
+  args:
+    chdir: "{{corkscrew_dest}}/corkscrew-2.0/"
+  register: out
+- debug: var=out.stdout_lines
+
+- name: Running make install
+  command: make install
+  args:
+    chdir: "{{corkscrew_dest}}/corkscrew-2.0/"
+  register: out
+- debug: var=out.stdout_lines
+
+
+- name: Creating and configuring ~/.ssh/config to clone bitbucket repo system model
+  template: src=ssh-config dest=~/.ssh/config mode=400
+
+
+- name: clonning systems-model repo from bitbucket
+  git: repo="{{systems_model_repo}}" dest="{{systems_model_dest}}" version=cluster-automation
+  environment: "{{proxy_env}}"
+
+#+END_SRC
+
+*** Dependencies
+     Meta directory is to access other roles variables in local role.
+#+BEGIN_SRC yml :tangle roles/basesetup/meta/main.yml
+
+dependencies:
+   - common-vars 
+
+#+END_SRC
+
+*** SSH configuration to clone to systems-model from bitbucket.org 
+    This file contains all necessary data needed to clone a repository
+    systems-model from http://bitbucket.org
+
+    The following file is needed when the network proxy is blocking
+    outgoing packets on port =22= and trying to clone a repository
+    over http,https and over ssh.
+
+#+BEGIN_SRC yml :tangle roles/basesetup/templates/ssh-config
+Host altssh.bitbucket.org
+User git
+Port 443
+Hostname altssh.bitbucket.org
+TCPKeepAlive yes
+IdentityFile "~/.ssh/id_rsa"
+IdentitiesOnly yes
+ProxyCommand corkscrew {{corkscrew_proxy}} {{proxy_port}} %h %p
+
+#+END_SRC
+
+*** Include all tasks files 
+    The following playbook contains included task files. These include
+    files that are already described above.This playbooks sets up base machine. 
+#+BEGIN_SRC yml :tangle roles/basesetup/tasks/main.yml
+---
+# tasks file for basesetup
+- include: eth0.yml
+- include: br0.yml
+- include: br1.yml
+- include: corkscrew_installation.yml
+
+#+End_SRC
+ 
+
+
+** Setup Virtualization on host machine
+*** OpenVZ Virtualization
+**** Clone cluster-setup-ovpl-centos repository
+    - This script =clone.yml= installs =git=. 
+    - Clones [[./https://github.com/vlead/cluster-setup-ovpl-centos][cluster-setup-ovpl-centos]] repository from
+      http://github.com and saves it in destination mentioned in
+      =dest= parameter. 
+ 
+#+BEGIN_SRC yml :tangle roles/openvz/tasks/clone-cluster-setup-ovpl-centos.yml
+---
+    - name: installing git
+      yum: name=git state=installed
+      environment: "{{proxy_env}}"
+      register: out
+    - debug: var=out.stdout_lines 
+
+    - name: changing directory to clone setup-ovpl-centos 
+      git: 
+         repo: "{{setup_ovpl_centos}}"
+         dest: ~/cluster-setup-ovpl-centos
+         version: master
+      environment: "{{proxy_env}}"
+      ignore_errors: yes
+      register: out
+    - debug: var=out.stdout_lines
+      
+
+#+END_SRC
+
+**** Install OpenVZ
+     Following script does 
+     - Exports network proxy through a =proxy_env.http_proxy=
+       variable. It is defined in [[./common-vars.org][common-vars]] file.
+     - Installs =OpenVZ= through a shell script called
+       =./centos_prepare_ovpl.sh=
+     
+
+#+BEGIN_SRC yml :tangle roles/openvz/tasks/install-openvz.yml
+---
+    - name: Settiing proxy in config.sh to install openvz
+      replace: 
+          path: ~/cluster-setup-ovpl-centos/scripts/config.sh
+          regexp: 'export http_proxy=""'
+          replace: 'export http_proxy="{{proxy_env.http_proxy}}"'
+     
+    - name: Settiing proxy in config.sh to install openvz
+      replace: 
+          path: ~/cluster-setup-ovpl-centos/scripts/config.sh
+          regexp: 'export https_proxy=""'
+          replace: 'export https_proxy="{{proxy_env.https_proxy}}"'
+
+    
+    - name: running centos_prepare_ovpl.sh shell script
+      command: ./centos_prepare_ovpl.sh
+      register: out 
+      args: 
+        chdir: ~/cluster-setup-ovpl-centos/scripts/
+    - debug: var=out.stdout_lines
+
+
+#+END_SRC
+
+**** Configure OpenVZ configuration files
+     Following script does 
+     - Sets to =net.ipv4.ip_forward = 1= to enable packet forwarding for
+       IPv4
+     - Sets to =NETFILTER="full"= to Restrict access to
+       netfilter/iptables modules for a container
+#+BEGIN_SRC yml :tangle roles/openvz/tasks/openvz-config.yml
+---
+    - name: Enabling Packet Forwarding  
+      replace: 
+          path: /etc/sysctl.conf
+          regexp: 'net.ipv4.ip_forward = 0'
+          replace: 'net.ipv4.ip_forward = 1'
+           
+    - name: Setting netfilter to full  
+      replace:
+          path: /etc/vz/conf/ve-vswap-256m.conf-sample 
+          regexp: 'NETFILTER="stateless"'
+          replace: 'NETFILTER="full"'
+
+    - name:  Enabling onboot network attachment to containers
+      copy:
+       content: "EXTERNAL_SCRIPT=\"/usr/sbin/vznetaddbr\" "
+       dest: "/etc/vz/vznet.conf"
+
+#+END_SRC
+
+**** Dependencies
+      Dependencies are required when accessing variables from other
+      roles.
+#+BEGIN_SRC yml :tangle roles/openvz/meta/main.yml
+
+dependencies:
+   - common-vars 
+
+#+END_SRC
+
+**** Main tasks file
+     =main.yml= contains various included playbooks which are needed
+     for OpenVZ virtualization setup. Purpose of each included
+     playbook is described above the =main.yml= file.
+#+BEGIN_SRC yml :tangle roles/openvz/tasks/main.yml 
+---
+# tasks file for openvz
+- include: clone-cluster-setup-ovpl-centos.yml
+- include: install-openvz.yml
+- include: openvz-config.yml
+- name: Restarting
+  command: reboot
+#+END_SRC
+     

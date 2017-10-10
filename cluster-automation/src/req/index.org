@@ -1,0 +1,16 @@
+#+Title: Requirements of automating the cluster creation 
+#+Author: Systems Team
+#+SETUPFILE: ../org-templates/level-1.org
+#+TAGS: boilerplate(b)
+#+EXCLUDE_TAGS: boilerplate
+#+OPTIONS: ^:nil
+* Introduction
+  This document contains the requirements of automating the cluster
+  creation.
+* Requirements
+** Req 1
+   Automate the boostrapping steps and running [[https://bitbucket.org/vlead/systems-model/src/fd77adcc24ad?at%3Ddevelop][systems-model]] ansible
+   playbooks.
+   
+   Implementation of this requirement is [[../imp/index.org][here]] 
+   

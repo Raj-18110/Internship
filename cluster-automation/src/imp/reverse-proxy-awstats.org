@@ -1,0 +1,63 @@
+#+Title: Reverse-proxy and AWStasts
+#+Author: Systems Team
+#+SETUPFILE: ../org-templates/level-1.org
+#+TAGS: boilerplate(b)
+#+EXCLUDE_TAGS: boilerplate
+#+OPTIONS: ^:nil
+
+
+* Introduction
+  This document describes the of automation of reverse proxy network
+  configuration.
+* Implementation
+** Automate Reverse proxy node configuration
+*** reverse-proxy 
+**** Reverse-Proxy-server Network Setup
+-    
+#+BEGIN_SRC yml :tangle roles/reverse-proxy-server/tasks/main.yml
+# tasks file for reverse-proxyserver
+
+---
+- name: Set root password
+  command: vzctl set 1007 --userpasswd root:{{container_root_password}}
+
+- name: copy interface ifcfg-eth1 file
+  template: src=ifcfg-eth1 dest=/vz/private/1007/etc/sysconfig/network-scripts/
+
+- name:  Network restart
+  command: vzctl exec 1007 service network restart
+
+#+END_SRC
+
+**** dependencies
+#+begin_src yml :tangle roles/reverse-proxy-server/meta/main.yml
+
+
+dependencies:
+     - common-vars
+
+#+end_src
+
+**** Reverse-Proxy Private Network
+Configures the network-interface in /etc/sysconfig/network-scripts/ifcfg-eth1 of reverse-proxy-server with the following fields 
+#+BEGIN_SRC yml :tangle roles/reverse-proxy-server/templates/ifcfg-eth1
+
+DEVICE=eth1
+BOOTPROTO=static
+ONBOOT=yes
+NM_CONTROLLED=no
+IPADDR=10.100.1.7
+GATEWAY=10.100.1.1
+NETMASK={{net_mask}}
+
+#+END_SRC
+
+    
+  
+
+
+
+
+    
+  
+
